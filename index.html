@@ -157,7 +157,7 @@
   .secao h2 { margin: 0 1rem .8rem; font-size: 1.1rem; }
   .secao h2 em { font-style: italic; color: var(--amarelo); }
   .galeria {
-    display: flex; gap: .7rem; overflow-x: auto; padding: 0 1rem .4rem; scroll-snap-type: x mandatory;
+    display: flex; gap: .7rem; overflow-x: auto; padding: 0 1rem .4rem; scroll-padding: 0 1rem; scroll-snap-type: x mandatory;
     scrollbar-width: none; -webkit-overflow-scrolling: touch;
   }
   .galeria::-webkit-scrollbar { display: none; }
@@ -166,6 +166,26 @@
     position: relative; background: var(--cartao); aspect-ratio: 4 / 3;
   }
   .galeria img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* Desktop (06/10/2026): mouse nao desliza a faixa como o dedo. Setas nas laterais e
+     arrastar com o mouse, so em aparelho com mouse; no celular nada disso aparece. */
+  .galeria-caixa { position: relative; }
+  .galeria-seta { display: none; }
+  @media (hover: hover) and (pointer: fine) {
+    .galeria { cursor: grab; user-select: none; }
+    .galeria.arrastando { cursor: grabbing; scroll-snap-type: none; }
+    .galeria.arrastando img { pointer-events: none; }
+    .galeria-seta {
+      display: grid; place-items: center; position: absolute; top: 50%; z-index: 2; width: 42px; height: 42px;
+      margin-top: -21px; border-radius: 50%; border: 1px solid var(--linha); cursor: pointer;
+      background: rgba(20, 5, 6, .82); color: var(--amarelo); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      transition: opacity .2s ease, transform .2s ease, border-color .2s ease;
+    }
+    .galeria-seta:hover { border-color: var(--amarelo); transform: scale(1.08); }
+    .galeria-seta svg { width: 20px; height: 20px; }
+    .galeria-seta--esq { left: 8px; }
+    .galeria-seta--dir { right: 8px; }
+    .galeria-seta[disabled] { opacity: 0; pointer-events: none; }
+  }
   .galeria figcaption {
     position: absolute; left: 0; right: 0; bottom: 0; padding: 1.6rem .9rem .7rem; font-weight: 700; font-size: .92rem;
     background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .78));
@@ -293,12 +313,16 @@
 
   <section class="secao entra" style="--i:11">
     <h2>Por dentro da <em>Guanabara</em></h2>
-    <div class="galeria" tabindex="0" aria-label="Fotos da estrutura">
+    <div class="galeria-caixa">
+    <button class="galeria-seta galeria-seta--esq" type="button" aria-label="Foto anterior" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg></button>
+    <button class="galeria-seta galeria-seta--dir" type="button" aria-label="Próxima foto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 18 6-6-6-6"/></svg></button>
+    <div class="galeria" id="galeria" tabindex="0" aria-label="Fotos da estrutura">
       <figure><img src="assets/img/carro.webp" alt="Carro de aula da Guanabara" width="900" height="675" loading="lazy"><figcaption>Carros de aula</figcaption></figure>
       <figure><img src="assets/img/caminhao.webp" alt="Caminhão de aula da Guanabara" width="900" height="675" loading="lazy"><figcaption>Caminhão de aula</figcaption></figure>
       <figure><img src="assets/img/recepcao.webp" alt="Recepção da autoescola" width="900" height="675" loading="lazy"><figcaption>Recepção</figcaption></figure>
       <figure><img src="assets/img/atendimento.webp" alt="Atendimento aos alunos" width="900" height="675" loading="lazy"><figcaption>Atendimento</figcaption></figure>
       <figure><img src="assets/img/sala.webp" alt="Sala de aula teórica" width="900" height="675" loading="lazy"><figcaption>Sala de aula</figcaption></figure>
+    </div>
     </div>
   </section>
 
@@ -379,6 +403,44 @@
       bts.push(b); caixa.appendChild(b);
     }
     caixa.addEventListener('mouseleave', function () { acende(0); });
+  })();
+
+  // Galeria no desktop: setas e arrastar com o mouse. No toque o navegador ja desliza sozinho.
+  (function galeria() {
+    var g = document.getElementById('galeria');
+    var esq = document.querySelector('.galeria-seta--esq'), dir = document.querySelector('.galeria-seta--dir');
+    var passo = function () { var f = g.querySelector('figure'); return f ? f.offsetWidth + 11 : 300; };
+    function setas() {
+      esq.disabled = g.scrollLeft <= 4;
+      dir.disabled = g.scrollLeft + g.clientWidth >= g.scrollWidth - 4;
+    }
+    esq.addEventListener('click', function () { g.scrollBy({ left: -passo(), behavior: 'smooth' }); });
+    dir.addEventListener('click', function () { g.scrollBy({ left: passo(), behavior: 'smooth' }); });
+    g.addEventListener('scroll', setas, { passive: true });
+    window.addEventListener('resize', setas);
+    setas();
+
+    var x0 = 0, s0 = 0, ativo = false, moveu = false;
+    g.addEventListener('pointerdown', function (e) {
+      if (e.pointerType !== 'mouse' || e.button !== 0) return;
+      ativo = true; moveu = false; x0 = e.clientX; s0 = g.scrollLeft;
+    });
+    window.addEventListener('pointermove', function (e) {
+      if (!ativo) return;
+      var dx = e.clientX - x0;
+      if (!moveu && Math.abs(dx) > 4) { moveu = true; g.classList.add('arrastando'); }
+      if (moveu) { g.scrollLeft = s0 - dx; e.preventDefault(); }
+    });
+    window.addEventListener('pointerup', function () {
+      if (!ativo) return;
+      ativo = false;
+      if (!moveu) return;
+      // solta e encaixa na foto mais proxima, como o dedo faz
+      var p = passo(), alvo = Math.round(g.scrollLeft / p) * p;
+      g.classList.remove('arrastando');
+      g.scrollTo({ left: alvo, behavior: 'smooth' });
+    });
+    g.addEventListener('dragstart', function (e) { e.preventDefault(); });
   })();
 
   // Parallax leve na fachada (so com movimento liberado).
